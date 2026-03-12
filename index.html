@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Hockey: Absolute God-Tier AI</title>
+    <style>
+        body { margin: 0; background: #000; color: #fff; font-family: 'Arial Black', sans-serif; overflow: hidden; touch-action: none; }
+        canvas { display: block; }
+        #menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; text-align: center; overflow-y: auto; padding: 20px; box-sizing: border-box; }
+        h1 { color: #00ff88; font-size: 40px; margin: 0 0 10px 0; letter-spacing: 5px; text-shadow: 0 0 20px #00ff88; }
+        .settings { margin-bottom: 20px; background: #111; padding: 15px; border-radius: 15px; border: 1px solid #333; }
+        .settings label { margin: 5px 10px; cursor: pointer; font-size: 14px; user-select: none; display: inline-block; }
+        .settings input[type="number"] { width: 50px; background: #222; color: #fff; border: 1px solid #444; border-radius: 5px; padding: 5px; text-align: center; font-family: sans-serif; }
+        .btn-group { display: flex; flex-direction: column; gap: 10px; width: 320px; }
+        .mode-btn { font-size: 18px; padding: 15px; cursor: pointer; background: #222; color: #fff; border: 2px solid #444; border-radius: 50px; font-weight: bold; transition: 0.2s; }
+        .mode-btn:hover { transform: scale(1.05); border-color: #fff; }
+        .level-4 { background: linear-gradient(45deg, #00ff88, #ff00ff); color: #fff; border: none; box-shadow: 0 0 30px #00ff88; }
+        .level-3 { border-color: #ff0055; color: #ff0055; }
+        .level-2 { border-color: #00ccff; color: #00ccff; }
+        .level-1 { border-color: #aaa; color: #aaa; }
+        
+        #ui { position: fixed; top: 10px; width: 100%; display: flex; justify-content: center; gap: 50px; font-size: 50px; opacity: 0.5; pointer-events: none; z-index: 10; }
+        #item-notice { position: fixed; top: 20%; width: 100%; text-align: center; font-size: 40px; color: #ff0; pointer-events: none; display: none; z-index: 50; text-shadow: 0 0 10px #ff0; }
+        #win-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 200; text-align: center; }
+        #win-text { font-size: 60px; color: #fff; text-shadow: 0 0 30px #fff; margin-bottom: 20px; }
+        
+        .skill-container { position: fixed; bottom: 10px; display: flex; flex-direction: column; gap: 5px; padding: 10px; pointer-events: none; z-index: 10; }
+        #p1-skills { left: 10px; color: #ff0055; }
+        #p2-skills { right: 10px; text-align: right; color: #00ccff; }
+        progress { width: 90px; height: 10px; appearance: none; }
+        progress::-webkit-progress-bar { background: #222; border-radius: 5px; }
+        #p1-skills progress::-webkit-progress-value { background: #ff0055; box-shadow: 0 0 10px #ff0055; }
+        #p2-skills progress::-webkit-progress-value { background: #00ccff; box-shadow: 0 0 10px #00ccff; }
+    </style>
+</head>
+<body>
+
+<div id="ui"><span id="s1">0</span> - <span id="s2">0</span></div>
+<div id="item-notice">ITEM!</div>
+
+<div id="menu">
+    <h1>SUPREME GOD AI</h1>
+    <div class="settings">
+        <label><input type="checkbox" id="enableItems" checked> アイテム出現</label>
+        <label><input type="checkbox" id="enableSkills" checked> 能力（スキル）</label>
+        <label><input type="checkbox" id="enableLimit" checked> 移動制限あり</label>
+        <div style="margin-top: 10px;">
+            <label>勝利スコア: <input type="number" id="winScore" value="5" min="1"></label>
+        </div>
+    </div>
+    <div class="btn-group">
+        <button class="mode-btn level-4" onclick="startGame(4)">宇宙最強 (無量大数倍強化)</button>
+        <button class="mode-btn level-3" onclick="startGame(3)">世界最強</button>
+        <button class="mode-btn level-2" onclick="startGame(2)">国内最強</button>
+        <button class="mode-btn level-1" onclick="startGame(1)">練習用</button>
+        <button class="mode-btn" onclick="startGame(0)" style="margin-top:20px; background:#fff; color:#000;">2 PLAYER BATTLE</button>
+    </div>
+</div>
+
+<div id="win-screen">
+    <div id="win-text">WIN!</div>
+    <button class="mode-btn" onclick="location.reload()" style="background:#fff; color:#000;">MENU BACK</button>
+</div>
+
+<div id="p1-skills" class="skill-container">
+    Q:<progress id="p1-q" value="0" max="100"></progress>
+    W:<progress id="p1-w" value="0" max="100"></progress>
+    E:<progress id="p1-e" value="0" max="100"></progress>
+</div>
+<div id="p2-skills" class="skill-container">
+    I:<progress id="p2-q" value="0" max="100"></progress>
+    O:<progress id="p2-w" value="0" max="100"></progress>
+    P:<progress id="p2-e" value="0" max="100"></progress>
+</div>
+
+<canvas id="game"></canvas>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = (typeof io !== 'undefined') ? io() : null;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const itemNotice = document.getElementById('item-notice');
+const winScreen = document.getElementById('win-screen');
+const winText = document.getElementById('win-text');
+
+let w, h, balls = [], p1, p2, items = [], particles = [], gameActive = false;
+let comLevel = 0, timeFrozen = 0, score = [0, 0], targetWinScore = 5;
+let useItems = true, useSkills = true, useLimit = true;
+
+// オンライン用の変数
+let mySide = null;
+let enemyTargetPos = { x: 0, y: 0 };
+
+const P_RAD = 35;
+const COOL = { Q: 250, W: 600, E: 900 };
+
+const ITEM_TYPES = [
+    {n:'BIG', c:'#0f0', f:(p)=>p.tR=80},
+    {n:'TINY', c:'#f00', f:(p,o)=>o.tR=15},
+    {n:'WEAK', c:'#f80', f:(p,o)=>o.weak=240}, 
+    {n:'BALL+', c:'#ff0', f:()=>createBall()},
+    {n:'FREEZE', c:'#0ff', f:(p,o)=>o.frozen=120},
+    {n:'REVERSE', c:'#f00', f:(p,o)=>o.rev=180}
+];
+
+// オンライン通信の受信設定
+if (socket) {
+    socket.on('assign_side', (side) => {
+        mySide = side;
+    });
+    socket.on('update', (data) => {
+        if (comLevel === 0) {
+            enemyTargetPos.x = data.x * w;
+            enemyTargetPos.y = data.y * h;
+        }
+    });
+}
+
+function init() {
+    w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight;
+    const base = { lx:0, ly:0, vx:0, vy:0, r:P_RAD, tR:P_RAD, frozen:0, rev:0, weak:0 };
+    p1 = { ...base, x:100, y:h/2, color:'#ff0055', q:COOL.Q, w:COOL.W, e:COOL.E };
+    p2 = { ...base, x:w-100, y:h/2, color:'#00ccff', q:COOL.Q, w:COOL.W, e:COOL.E };
+    enemyTargetPos = { x: p1.x, y: p1.y };
+    particles = [];
+}
+
+function createBall() {
+    balls.push({ x:w/2, y:h/2, vx:(Math.random()-0.5)*15, vy:(Math.random()-0.5)*15, r:12, lastP:null });
+}
+
+function createParticles(x, y, color) {
+    for(let i=0; i<10; i++) {
+        particles.push({ x, y, vx:(Math.random()-0.5)*15, vy:(Math.random()-0.5)*15, life:30, color });
+    }
+}
+
+function checkWin() {
+    if (score[0] >= targetWinScore) endGame(comLevel === 0 ? "PLAYER 1 WIN!" : "GOD AI WINS!");
+    if (score[1] >= targetWinScore) endGame(comLevel === 0 ? "PLAYER 2 WIN!" : "HUMAN WINS!");
+}
+
+function endGame(msg) {
+    gameActive = false;
+    winScreen.style.display = 'flex';
+    winText.innerText = msg;
+}
+
+function spawnItem() {
+    if(!gameActive || !useItems) return;
+    const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+    items.push({ x:w/4 + Math.random()*(w/2), y:Math.random()*(h-100)+50, ...type });
+    setTimeout(spawnItem, 5000);
+}
+
+// --- COM 宇宙最強エンジン ---
+function updateCOM() {
+    if (comLevel === 0 || p1.frozen > 0) return;
+
+    let dangerBall = null;
+    let minDist = Infinity;
+    balls.forEach(b => {
+        let d = b.x; // 基本はXの近さ
+        if(d < minDist) { minDist = d; dangerBall = b; }
+    });
+    if (!dangerBall) return;
+
+    let reaction = (comLevel === 4) ? 1.0 : (comLevel === 3 ? 0.4 : (comLevel === 2 ? 0.2 : 0.1));
+
+    // 高度な軌道予測
+    let timeToReach = Math.abs(dangerBall.x - p1.x) / (Math.abs(dangerBall.vx) + 0.1);
+    if (dangerBall.vx > 0 && comLevel === 4) timeToReach = 10; // 攻めていない時も即座に最適位置へ
+
+    let predictedY = dangerBall.y + (dangerBall.vy * timeToReach);
+    while (predictedY < 0 || predictedY > h) {
+        if (predictedY < 0) predictedY = -predictedY;
+        if (predictedY > h) predictedY = 2 * h - predictedY;
+    }
+
+    // アイテム狙撃
+    let targetY = predictedY;
+    if (comLevel === 4 && useItems && items.length > 0) {
+        let it = items[0];
+        let angleBallToItem = Math.atan2(it.y - dangerBall.y, it.x - dangerBall.x);
+        targetY = dangerBall.y - Math.sin(angleBallToItem) * 40;
+    }
+
+    let targetX = dangerBall.x - 40;
+    if (dangerBall.vx > 0) targetX = 80;
+
+    // 移動制限の適用
+    if (useLimit) {
+        targetX = Math.min(targetX, w/2 - p1.r);
+        targetX = Math.max(targetX, p1.r);
+    } else if (comLevel === 4) {
+        targetX = Math.min(dangerBall.x - 30, w - p1.r);
+    }
+
+    p1.x += (targetX - p1.x) * reaction;
+    p1.y += (targetY - p1.y) * reaction;
+
+    // スキル使用
+    if (useSkills) {
+        if (p1.w >= COOL.W && dangerBall.x < 120 && dangerBall.vx < -10) {
+            timeFrozen = 110; p1.w = 0;
+        }
+        if (p1.q >= COOL.Q && Math.hypot(p1.x-dangerBall.x, p1.y-dangerBall.y) < 100) {
+            dangerBall.vx = 65; dangerBall.vy = (dangerBall.y - p1.y)*0.4; p1.q = 0;
+        }
+        if (p1.e >= COOL.E && balls.length > 1 && dangerBall.x < 300) {
+            p1.tR = 160; setTimeout(()=>p1.tR=P_RAD, 5000); p1.e = 0;
+        }
+    }
+}
+
+window.addEventListener('keydown', e => {
+    if (!gameActive || !useSkills) return;
+    if (p2.q >= COOL.Q && e.code === 'KeyI') { 
+        balls.forEach(b => { if(Math.hypot(b.x-p2.x, b.y-p2.y) < 200) { b.vx = -50; b.vy = (b.y-p2.y)*0.5; createParticles(b.x, b.y, p2.color); } });
+        p2.q = 0; 
+    }
+    if (p2.w >= COOL.W && e.code === 'KeyO') { timeFrozen = 100; p2.w = 0; }
+    if (p2.e >= COOL.E && e.code === 'KeyP') { p2.tR = 140; setTimeout(()=>p2.tR=P_RAD, 4000); p2.e = 0; }
+    if (comLevel === 0) {
+        if (p1.q >= COOL.Q && e.code === 'KeyQ') { balls.forEach(b => { if(Math.hypot(b.x-p1.x, b.y-p1.y) < 200){ b.vx = 50; createParticles(b.x, b.y, p1.color); } }); p1.q = 0; }
+        if (p1.w >= COOL.W && e.code === 'KeyW') { timeFrozen = 100; p1.w = 0; }
+        if (p1.e >= COOL.E && e.code === 'KeyE') { p1.tR = 140; setTimeout(()=>p1.tR=P_RAD, 4000); p1.e = 0; }
+    }
+});
+
+canvas.addEventListener('pointermove', e => {
+    if (!gameActive) return;
+    const touches = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    touches.forEach(t => {
+        let tx = t.clientX, ty = p2.rev > 0 ? h - t.clientY : t.clientY;
+        
+        // 操作と通信の統合
+        if (tx > (useLimit ? w/2 : 0)) {
+            if (p2.frozen > 0) return;
+            p2.x = tx; p2.y = ty;
+            if (socket) socket.emit('move', { x: p2.x / w, y: p2.y / h });
+        } else if (comLevel === 0) {
+            if (p1.frozen > 0) return;
+            p1.x = tx; p1.y = ty;
+            if (socket) socket.emit('move', { x: p1.x / w, y: p1.y / h });
+        }
+    });
+});
+
+function update() {
+    if(!gameActive) return;
+    if (timeFrozen <= 0) {
+        updateCOM();
+
+        // ラグ対策：オンライン時の相手の動きを補間（Lerp）
+        if (comLevel === 0 && mySide) {
+            const enemy = (mySide === 'top') ? p2 : p1;
+            enemy.x += (enemyTargetPos.x - enemy.x) * 0.2;
+            enemy.y += (enemyTargetPos.y - enemy.y) * 0.2;
+        }
+
+        [p1, p2].forEach((p, i) => {
+            p.vx = p.x - p.lx; p.vy = p.y - p.ly; p.lx = p.x; p.ly = p.y;
+            p.r += (p.tR - p.r) * 0.1;
+            if (p.frozen > 0) p.frozen--; if (p.rev > 0) p.rev--; if (p.weak > 0) p.weak--;
+            if (useSkills) {
+                if (p.q < COOL.Q) p.q++; if (p.w < COOL.W) p.w++; if (p.e < COOL.E) p.e++;
+            }
+            const pre = i === 0 ? 'p1-' : 'p2-';
+            const qEl = document.getElementById(pre+'q'), wEl = document.getElementById(pre+'w'), eEl = document.getElementById(pre+'e');
+            if(qEl) qEl.value = (p.q/COOL.Q)*100; if(wEl) wEl.value = (p.w/COOL.W)*100; if(eEl) eEl.value = (p.e/COOL.E)*100;
+        });
+    } else { timeFrozen--; }
+
+    balls.forEach((b, bi) => {
+        if (timeFrozen <= 0) { b.x += b.vx; b.y += b.vy; b.vx *= 0.998; b.vy *= 0.998; }
+        if(b.y < b.r || b.y > h - b.r) { b.vy *= -1; b.y = b.y<b.r?b.r:h-b.r; createParticles(b.x, b.y, '#fff'); }
+        [p1, p2].forEach(p => {
+            const dx = b.x - p.x, dy = b.y - p.y, dist = Math.hypot(dx, dy);
+            if (dist < b.r + p.r) {
+                const angle = Math.atan2(dy, dx);
+                const power = p.weak > 0 ? 0.3 : 1.3;
+                b.vx = Math.cos(angle)*18 + p.vx*power; 
+                b.vy = Math.sin(angle)*18 + p.vy*power;
+                b.x = p.x + Math.cos(angle)*(b.r+p.r); 
+                b.y = p.y + Math.sin(angle)*(b.r+p.r);
+                b.lastP = p;
+                createParticles(b.x, b.y, p.color);
+            }
+        });
+        if (useItems) {
+            items = items.filter(it => {
+                if (Math.hypot(b.x - it.x, b.y - it.y) < b.r + 30) {
+                    if (b.lastP) { 
+                        it.f(b.lastP, b.lastP===p1?p2:p1, b);
+                        itemNotice.innerText = it.n; itemNotice.style.display = 'block';
+                        setTimeout(()=>itemNotice.style.display='none', 800);
+                        createParticles(it.x, it.y, it.c);
+                    }
+                    return false;
+                } return true;
+            });
+        }
+        if (b.x < 0) { score[1]++; checkWin(); balls.splice(bi, 1); if(balls.length==0 && gameActive) createBall(); }
+        else if (b.x > w) { score[0]++; checkWin(); balls.splice(bi, 1); if(balls.length==0 && gameActive) createBall(); }
+    });
+    draw();
+    requestAnimationFrame(update);
+}
+
+function draw() {
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,w,h);
+    if (useLimit) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke();
+    }
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life--;
+        ctx.globalAlpha = p.life / 30; ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 4, 4);
+        if(p.life <= 0) particles.splice(i, 1);
+    });
+    ctx.globalAlpha = 1;
+    if (useItems) {
+        items.forEach(it => { 
+            ctx.fillStyle = it.c; ctx.font = 'bold 20px sans-serif'; ctx.textAlign='center'; ctx.fillText(it.n, it.x, it.y); 
+        });
+    }
+    [p1, p2].forEach(p => {
+        ctx.shadowBlur = 20; ctx.shadowColor = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+        ctx.fillStyle = p.weak>0 ? '#333' : p.color; ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+    balls.forEach(b => { 
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fillStyle = '#fff'; ctx.fill(); 
+        ctx.shadowBlur = 10; ctx.shadowColor = '#fff';
+    });
+    ctx.shadowBlur = 0;
+    document.getElementById('s1').innerText = score[0]; 
+    document.getElementById('s2').innerText = score[1];
+}
+
+function startGame(lvl) {
+    comLevel = lvl; 
+    useItems = document.getElementById('enableItems').checked;
+    useSkills = document.getElementById('enableSkills').checked;
+    useLimit = document.getElementById('enableLimit').checked;
+    targetWinScore = parseInt(document.getElementById('winScore').value) || 5;
+    document.getElementById('p1-skills').style.visibility = useSkills ? 'visible' : 'hidden';
+    document.getElementById('p2-skills').style.visibility = useSkills ? 'visible' : 'hidden';
+    gameActive = true; score = [0, 0];
+    document.getElementById('menu').style.display = 'none';
+    winScreen.style.display = 'none';
+    init(); createBall(); if(useItems) spawnItem(); update();
+}
+window.onresize = init; init();
+</script>
+</body>
+</html>
